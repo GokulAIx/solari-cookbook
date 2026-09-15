@@ -14,7 +14,8 @@ def save_report(report: dict[str, Any], database_path: str) -> str:
     run_id = str(uuid4())
     path = Path(database_path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    with sqlite3.connect(path) as connection:
+    connection = sqlite3.connect(path)
+    try:
         connection.execute(
             """
             CREATE TABLE IF NOT EXISTS runs (
@@ -36,25 +37,34 @@ def save_report(report: dict[str, Any], database_path: str) -> str:
                 json.dumps(report, ensure_ascii=False),
             ),
         )
+        connection.commit()
+    finally:
+        connection.close()
     return run_id
 
 
 def get_report(run_id: str, database_path: str) -> dict[str, Any] | None:
     if not Path(database_path).exists():
         return None
-    with sqlite3.connect(database_path) as connection:
+    connection = sqlite3.connect(database_path)
+    try:
         row = connection.execute("SELECT report_json FROM runs WHERE id = ?", (run_id,)).fetchone()
+    finally:
+        connection.close()
     return json.loads(row[0]) if row else None
 
 
 def list_reports(database_path: str, limit: int = 12) -> list[dict[str, Any]]:
     if not Path(database_path).exists():
         return []
-    with sqlite3.connect(database_path) as connection:
+    connection = sqlite3.connect(database_path)
+    try:
         rows = connection.execute(
             "SELECT id, created_at, scenario, classification FROM runs ORDER BY created_at DESC LIMIT ?",
             (limit,),
         ).fetchall()
+    finally:
+        connection.close()
     return [
         {"id": row[0], "created_at": row[1], "scenario": row[2], "classification": row[3]}
         for row in rows

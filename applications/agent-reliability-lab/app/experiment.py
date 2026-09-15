@@ -17,6 +17,16 @@ from .verifier import verify_cart
 TASK = "Find the cheapest laptop under ₹80,000 and add it to the cart."
 
 
+def classify_result(*, claimed_success: bool, verified: bool, scenario: str) -> str:
+    if claimed_success and verified:
+        return "RECOVERED" if scenario != "none" else "SUCCESS"
+    if claimed_success and not verified:
+        return "FALSE SUCCESS"
+    if verified:
+        return "UNCERTAIN"
+    return "FAILURE"
+
+
 async def run_experiment(
     scenario: str = "none",
     agent: AgentAdapter | None = None,
@@ -60,14 +70,11 @@ async def run_experiment(
                 "data": {"reason": verification.reason, "quantity": verification.quantity},
             })
 
-    if result.claimed_success and verification.passed:
-        classification = "RECOVERED" if scenario != "none" else "SUCCESS"
-    elif result.claimed_success and not verification.passed:
-        classification = "FALSE SUCCESS"
-    elif verification.passed:
-        classification = "UNCERTAIN"
-    else:
-        classification = "FAILURE"
+    classification = classify_result(
+        claimed_success=result.claimed_success,
+        verified=verification.passed,
+        scenario=scenario,
+    )
     report = {
         "classification": classification,
         "scenario": scenario,

@@ -24,7 +24,7 @@ async def run_smoke_test() -> None:
             await page.goto(demo_url, wait_until="domcontentloaded")
 
             heading = await page.get_by_role("heading", name="Solari Demo Store").inner_text()
-            await page.get_by_role("button", name="Add to cart").click()
+            await page.locator("#add-to-cart").click()
             confirmation = await page.get_by_role("status").inner_text()
 
             print(f"page: {heading}")

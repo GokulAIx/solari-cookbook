@@ -3,6 +3,7 @@
 import asyncio
 import os
 import sys
+from pathlib import Path
 from urllib.parse import urlparse
 
 from fastapi import FastAPI, HTTPException
@@ -23,8 +24,9 @@ if sys.platform == "win32" and hasattr(asyncio, "WindowsProactorEventLoopPolicy"
 load_dotenv()
 
 app = FastAPI(title="Agent Reliability Lab")
-app.mount("/static", StaticFiles(directory="app/static"), name="static")
-templates = Jinja2Templates(directory="app/templates")
+APP_ROOT = Path(__file__).resolve().parents[1]
+app.mount("/static", StaticFiles(directory=APP_ROOT / "app" / "static"), name="static")
+templates = Jinja2Templates(directory=APP_ROOT / "app" / "templates")
 
 
 class RunRequest(BaseModel):
@@ -38,7 +40,7 @@ class ExperimentRequest(BaseModel):
 
 
 def database_path() -> str:
-    return os.environ.get("RUN_DB_PATH", "data/runs.db")
+    return os.environ.get("RUN_DB_PATH", str(APP_ROOT / "data" / "runs.db"))
 
 
 @app.get("/")

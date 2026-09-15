@@ -1,6 +1,8 @@
 # Agent Reliability Lab
 
-Agent Reliability Lab is a reliability and chaos-testing harness for browser-based AI agents running inside Solari.
+Agent Reliability Lab is an experimental reliability-testing application built on Solari. Solari provides the remote browser execution environment; this application deliberately introduces controlled failures, measures agent recovery, and independently verifies the actual application state.
+
+The Gemini/LangGraph browser agent included here is a reference subject under test, not the product itself. The product is the reliability layer around Solari-powered agents.
 
 ## Phase 1
 
@@ -19,7 +21,7 @@ Requirements: Python 3.11+ and a Solari API key.
 ```powershell
 python -m venv .venv
 .venv\Scripts\Activate.ps1
-python -m pip install -r requirements.txt
+python -m pip install .
 ```
 
 Set the environment variables in the current PowerShell session:
@@ -122,7 +124,7 @@ interaction: ThinkPad X1 added to cart
 cleanup: browser session released
 ```
 
-The API key stays server-side. Do not put it in the demo site or commit a populated `.env` file.
+The API key stays server-side. Do not put it in the demo site or commit a populated `.env` file. This application does not modify Solari or claim to be an official Solari feature.
 
 ## Deploy the demo to Vercel
 

@@ -40,3 +40,4 @@ variable it reads and nothing else.
 | Application | Language | What it does |
 | --- | --- | --- |
 | [worldline](worldline) | Python | Snapshot-branch competing plans, verify their artifacts, and replay only the winner |
+| [agent-reliability-lab](agent-reliability-lab) | Python | Stress-test Solari-powered browser agents with controlled failures and independent verification |

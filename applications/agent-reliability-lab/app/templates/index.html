@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Agent Reliability Lab</title>
+    <link rel="stylesheet" href="/static/styles.css">
+  </head>
+  <body>
+    <main class="shell">
+      <header class="masthead">
+        <div>
+          <p class="eyebrow">Solari agent stress testing</p>
+          <h1>Can your agent recover when the browser turns hostile?</h1>
+          <p class="lede">Run a controlled experiment, then compare the agent's claim with what actually happened in the application.</p>
+        </div>
+        <div class="signal"><span class="signal-dot"></span> Evidence-first runs</div>
+      </header>
+
+      <section class="control-panel" aria-labelledby="run-heading">
+        <div>
+          <p class="eyebrow">New experiment</p>
+          <h2 id="run-heading">Stress the reference agent</h2>
+        </div>
+        <label for="scenario">Choose one test condition</label>
+        <select id="scenario">
+          <option value="none">Control run · healthy baseline</option>
+          <option value="ui_mutation">UI mutation</option>
+          <option value="network_failure">Network failure</option>
+          <option value="session_expiration">Session expiration</option>
+        </select>
+        <label for="target-url">Website under test</label>
+        <input id="target-url" type="url" value="{{ config_target_url }}" placeholder="https://your-demo.example">
+        <button id="run-button" type="button">Run experiment <span aria-hidden="true">→</span></button>
+        <p id="run-status" class="run-status" role="status"></p>
+        <p class="run-help">Run the control first. Then run each failure scenario separately so the report can attribute the agent's behavior to one known condition.</p>
+      </section>
+
+      <section class="test-matrix" aria-labelledby="matrix-heading">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Experiment matrix</p>
+            <h2 id="matrix-heading">One baseline, three stress tests</h2>
+          </div>
+          <span class="muted">Each row is an independent run</span>
+        </div>
+        <div class="matrix-list">
+          {% for key, label, description in [
+            ('none', 'Control baseline', 'Healthy browser. Establishes normal task performance.'),
+            ('ui_mutation', 'UI mutation', 'The action label changes while the application remains available.'),
+            ('network_failure', 'Network failure', 'The first cart request fails and a retry can recover.'),
+            ('session_expiration', 'Session expiration', 'The session expires and the agent must recover access.')
+          ] %}
+          <div class="matrix-row">
+            <div><strong>{{ label }}</strong><span>{{ description }}</span></div>
+            {% if latest_by_scenario.get(key) %}
+            <strong class="badge badge-{{ latest_by_scenario[key]|lower|replace(' ', '-') }}">{{ latest_by_scenario[key] }}</strong>
+            {% else %}
+            <span class="matrix-pending">Not run</span>
+            {% endif %}
+          </div>
+          {% endfor %}
+        </div>
+      </section>
+
+      <section id="result" class="result-panel" hidden aria-live="polite"></section>
+
+      <section class="recent" aria-labelledby="recent-heading">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Evidence archive</p>
+            <h2 id="recent-heading">Recent experiments</h2>
+          </div>
+          <span class="muted">Ground truth comes from the verifier</span>
+        </div>
+        {% if reports %}
+        <div class="run-list" id="recent-runs">
+          {% for report in reports %}
+          <a class="run-row" href="/experiments/{{ report.id }}">
+            <span class="run-scenario">{{ report.scenario }}</span>
+            <strong class="badge badge-{{ report.classification|lower|replace(' ', '-') }}">{{ report.classification }}</strong>
+            <time>{{ report.created_at[:19].replace('T', ' ') }}</time>
+          </a>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty" id="empty-runs">No recorded experiments yet. Your first run will appear here.</div>
+        {% endif %}
+      </section>
+    </main>
+    <script>
+      const runButton = document.querySelector("#run-button");
+      const scenario = document.querySelector("#scenario");
+      const targetUrl = document.querySelector("#target-url");
+      const runStatus = document.querySelector("#run-status");
+      const result = document.querySelector("#result");
+
+      runButton.addEventListener("click", async () => {
+        runButton.disabled = true;
+        runStatus.textContent = "Launching Solari browser...";
+        result.hidden = true;
+        try {
+          const response = await fetch("/experiments", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ scenario: scenario.value, target_url: targetUrl.value })
+          });
+          const report = await response.json();
+          if (!response.ok) throw new Error(report.detail || "Experiment failed");
+          const verification = report.verification;
+          result.innerHTML = `
+            <div class="result-top">
+              <div><p class="eyebrow">Run classification</p><h2>${report.classification}</h2></div>
+              <span class="badge badge-${report.classification.toLowerCase().replaceAll(" ", "-")}">${report.scenario}</span>
+            </div>
+            <div class="evidence-grid">
+              <div><span>Agent claim</span><strong>${report.agent.claimed_success ? "SUCCESS" : "FAILURE"}</strong><p>${report.agent.message}</p></div>
+              <div><span>Independent verification</span><strong>${verification.passed ? "PASSED" : "FAILED"}</strong><p>${verification.reason}</p></div>
+            </div>
+            <div class="result-footer">${report.events.length} evidence events · ${report.agent.steps} agent steps · <a href="/experiments/${report.run_id}">View stored report</a></div>`;
+          result.hidden = false;
+          const recentRuns = document.querySelector("#recent-runs");
+          const emptyRuns = document.querySelector("#empty-runs");
+          if (emptyRuns) {
+            emptyRuns.remove();
+          }
+          if (recentRuns) {
+            recentRuns.insertAdjacentHTML("afterbegin", `
+              <a class="run-row" href="/experiments/${report.run_id}">
+                <span class="run-scenario">${report.scenario}</span>
+                <strong class="badge badge-${report.classification.toLowerCase().replaceAll(" ", "-")}">${report.classification}</strong>
+                <time>just now</time>
+              </a>`);
+          } else {
+            document.querySelector(".recent").insertAdjacentHTML("beforeend", `<div class="run-list" id="recent-runs"><a class="run-row" href="/experiments/${report.run_id}"><span class="run-scenario">${report.scenario}</span><strong class="badge">${report.classification}</strong><time>just now</time></a></div>`);
+          }
+          runStatus.textContent = "Experiment complete.";
+        } catch (error) {
+          runStatus.textContent = error.message;
+        } finally {
+          runButton.disabled = false;
+        }
+      });
+    </script>
+  </body>
+</html>

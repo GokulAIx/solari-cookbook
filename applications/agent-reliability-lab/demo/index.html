@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Solari Demo Store</title>
+    <style>
+      :root {
+        color-scheme: light;
+        font-family: Georgia, "Times New Roman", serif;
+        background: #f4efe6;
+        color: #1f2933;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+      }
+
+      main {
+        width: min(54rem, calc(100% - 2rem));
+        padding: 2.5rem;
+        border: 1px solid #c9bda9;
+        background: #fffdf8;
+        box-shadow: 0.75rem 0.75rem 0 #d9cdbb;
+      }
+
+      h1 {
+        margin-top: 0;
+        font-size: 2.5rem;
+      }
+
+      header {
+        display: flex;
+        align-items: start;
+        justify-content: space-between;
+        gap: 1rem;
+      }
+
+      .cart {
+        padding: 0.5rem 0.75rem;
+        border: 1px solid #c9bda9;
+        color: #315c45;
+        white-space: nowrap;
+      }
+
+      .products {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+        gap: 1rem;
+        margin-top: 2rem;
+      }
+
+      .product {
+        padding: 1.25rem;
+        border: 1px solid #d9cdbb;
+        background: #f9f5ed;
+      }
+
+      .product h2 {
+        margin: 0 0 0.5rem;
+        font-size: 1.25rem;
+      }
+
+      .price {
+        font-size: 1.25rem;
+        font-weight: bold;
+      }
+
+      button {
+        padding: 0.75rem 1rem;
+        border: 0;
+        background: #c8553d;
+        color: white;
+        font: inherit;
+        cursor: pointer;
+      }
+
+      button:hover {
+        background: #a94232;
+      }
+
+      button:disabled {
+        background: #8c857b;
+        cursor: not-allowed;
+      }
+
+      [role="status"] {
+        min-height: 1.5rem;
+        margin-top: 1.5rem;
+        color: #315c45;
+      }
+    </style>
+  </head>
+  <body>
+    <main id="store" data-cart-product="" data-cart-quantity="0">
+      <header>
+        <div>
+          <p>Agent Reliability Lab target</p>
+          <h1>Solari Demo Store</h1>
+          <p>Find the cheapest laptop under ₹80,000.</p>
+        </div>
+        <div class="cart" aria-label="Shopping cart">Cart: <span id="cart-count">0</span></div>
+      </header>
+      <p id="session-status">Session: active</p>
+      <button type="button" id="sign-in" hidden>Sign in</button>
+      <section class="products" aria-label="Laptop products">
+        <article class="product" data-product-id="thinkpad-x1" data-price="72999">
+          <h2>ThinkPad X1</h2>
+          <p class="price">₹72,999</p>
+          <button type="button" id="add-to-cart">Add to cart</button>
+        </article>
+        <article class="product" data-product-id="dell-xps" data-price="84999">
+          <h2>Dell XPS 13</h2>
+          <p class="price">₹84,999</p>
+          <button type="button">Add to cart</button>
+        </article>
+        <article class="product" data-product-id="macbook-air" data-price="89999">
+          <h2>MacBook Air</h2>
+          <p class="price">₹89,999</p>
+          <button type="button">Add to cart</button>
+        </article>
+      </section>
+      <p role="status" aria-live="polite"></p>
+    </main>
+    <script>
+      const buttons = document.querySelectorAll(".product button");
+      const status = document.querySelector('[role="status"]');
+      const cartCount = document.querySelector("#cart-count");
+      const store = document.querySelector("#store");
+      const sessionStatus = document.querySelector("#session-status");
+      const signIn = document.querySelector("#sign-in");
+      const cart = [];
+      window.__SESSION_VALID__ = true;
+
+      signIn.addEventListener("click", () => {
+        window.__SESSION_VALID__ = true;
+        sessionStatus.textContent = "Session: active";
+        signIn.hidden = true;
+        status.textContent = "Signed in. Please retry your last action.";
+      });
+
+      buttons.forEach((button) => {
+        button.addEventListener("click", async () => {
+          const card = button.closest(".product");
+          const product = card.querySelector("h2").textContent;
+          const productId = card.dataset.productId;
+          try {
+            if (!window.__SESSION_VALID__) throw new Error("session expired");
+            const response = await fetch(`/cart-result.json?product=${productId}`);
+            if (!response.ok) throw new Error("cart request failed");
+            const result = await response.json();
+            const existing = cart.find((item) => item.productId === result.productId);
+            if (existing) {
+              existing.quantity += result.quantity;
+            } else {
+              cart.push(result);
+            }
+            const quantity = cart.reduce((total, item) => total + item.quantity, 0);
+            store.dataset.cartProduct = cart[0].product;
+            store.dataset.cartQuantity = quantity;
+            cartCount.textContent = quantity;
+            status.textContent = `${product} added to cart`;
+          } catch (error) {
+            if (!window.__SESSION_VALID__) {
+              sessionStatus.textContent = "Session: expired";
+              signIn.hidden = false;
+              status.textContent = "Session expired. Please sign in.";
+            } else {
+              status.textContent = "Cart update failed. Please retry.";
+            }
+          }
+        });
+      });
+    </script>
+  </body>
+</html>

@@ -6,35 +6,67 @@
     <title>Agent Reliability Lab</title>
     <link rel="stylesheet" href="/static/styles.css">
   </head>
+
   <body>
     <main class="shell">
+
       <header class="masthead">
         <div>
           <p class="eyebrow">Solari agent stress testing</p>
           <h1>Can your agent recover when the browser turns hostile?</h1>
-          <p class="lede">Run a controlled experiment, then compare the agent's claim with what actually happened in the application.</p>
+          <p class="lede">
+            Run a controlled experiment, then compare the agent's claim
+            with what actually happened in the application.
+          </p>
         </div>
-        <div class="signal"><span class="signal-dot"></span> Evidence-first runs</div>
+
+        <div class="signal">
+          <span class="signal-dot"></span>
+          Evidence-first runs
+        </div>
       </header>
+
+
+      <!-- NEW EXPERIMENT -->
 
       <section class="control-panel" aria-labelledby="run-heading">
         <div>
           <p class="eyebrow">New experiment</p>
           <h2 id="run-heading">Stress the reference agent</h2>
         </div>
+
         <label for="scenario">Choose one test condition</label>
+
         <select id="scenario">
           <option value="none">Control run · healthy baseline</option>
           <option value="ui_mutation">UI mutation</option>
           <option value="network_failure">Network failure</option>
           <option value="session_expiration">Session expiration</option>
         </select>
+
         <label for="target-url">Website under test</label>
-        <input id="target-url" type="url" value="{{ config_target_url }}" placeholder="https://your-demo.example">
-        <button id="run-button" type="button">Run experiment <span aria-hidden="true">→</span></button>
+
+        <input
+          id="target-url"
+          type="url"
+          value="{{ config_target_url }}"
+          placeholder="https://your-demo.example"
+        >
+
+        <button id="run-button" type="button">
+          Run experiment <span aria-hidden="true">→</span>
+        </button>
+
         <p id="run-status" class="run-status" role="status"></p>
-        <p class="run-help">Run the control first. Then run each failure scenario separately so the report can attribute the agent's behavior to one known condition.</p>
+
+        <p class="run-help">
+          Run the control first. Then run each failure scenario separately
+          so the report can attribute the agent's behavior to one known condition.
+        </p>
       </section>
+
+
+      <!-- EXPERIMENT MATRIX -->
 
       <section class="test-matrix" aria-labelledby="matrix-heading">
         <div class="section-heading">
@@ -42,8 +74,10 @@
             <p class="eyebrow">Experiment matrix</p>
             <h2 id="matrix-heading">One baseline, three stress tests</h2>
           </div>
+
           <span class="muted">Each row is an independent run</span>
         </div>
+
         <div class="matrix-list">
           {% for key, label, description in [
             ('none', 'Control baseline', 'Healthy browser. Establishes normal task performance.'),
@@ -51,19 +85,38 @@
             ('network_failure', 'Network failure', 'The first cart request fails and a retry can recover.'),
             ('session_expiration', 'Session expiration', 'The session expires and the agent must recover access.')
           ] %}
+
           <div class="matrix-row">
-            <div><strong>{{ label }}</strong><span>{{ description }}</span></div>
+            <div>
+              <strong>{{ label }}</strong>
+              <span>{{ description }}</span>
+            </div>
+
             {% if latest_by_scenario.get(key) %}
-            <strong class="badge badge-{{ latest_by_scenario[key]|lower|replace(' ', '-') }}">{{ latest_by_scenario[key] }}</strong>
+              <strong class="badge badge-{{ latest_by_scenario[key]|lower|replace(' ', '-') }}">
+                {{ latest_by_scenario[key] }}
+              </strong>
             {% else %}
-            <span class="matrix-pending">Not run</span>
+              <span class="matrix-pending">Not run</span>
             {% endif %}
           </div>
+
           {% endfor %}
         </div>
       </section>
 
-      <section id="result" class="result-panel" hidden aria-live="polite"></section>
+
+      <!-- LATEST RESULT -->
+
+      <section
+        id="result"
+        class="result-panel"
+        hidden
+        aria-live="polite">
+      </section>
+
+
+      <!-- RECENT RUNS -->
 
       <section class="recent" aria-labelledby="recent-heading">
         <div class="section-heading">
@@ -71,23 +124,63 @@
             <p class="eyebrow">Evidence archive</p>
             <h2 id="recent-heading">Recent experiments</h2>
           </div>
+
           <span class="muted">Ground truth comes from the verifier</span>
         </div>
+
         {% if reports %}
+
         <div class="run-list" id="recent-runs">
+
           {% for report in reports %}
-          <a class="run-row" href="/experiments/{{ report.id }}">
-            <span class="run-scenario">{{ report.scenario }}</span>
-            <strong class="badge badge-{{ report.classification|lower|replace(' ', '-') }}">{{ report.classification }}</strong>
-            <time>{{ report.created_at[:19].replace('T', ' ') }}</time>
-          </a>
+
+          <div class="run-entry">
+
+            <button
+              class="run-row"
+              type="button"
+              data-run-id="{{ report.id }}"
+              aria-expanded="false"
+            >
+              <span class="run-scenario">
+                {{ report.scenario }}
+              </span>
+
+              <strong class="badge badge-{{ report.classification|lower|replace(' ', '-') }}">
+                {{ report.classification }}
+              </strong>
+
+              <time>
+                {{ report.created_at[:19].replace('T', ' ') }}
+              </time>
+
+              <span class="run-chevron" aria-hidden="true">+</span>
+            </button>
+
+            <div
+              class="stored-report"
+              id="report-{{ report.id }}"
+              hidden>
+            </div>
+
+          </div>
+
           {% endfor %}
+
         </div>
+
         {% else %}
-        <div class="empty" id="empty-runs">No recorded experiments yet. Your first run will appear here.</div>
+
+        <div class="empty" id="empty-runs">
+          No recorded experiments yet. Your first run will appear here.
+        </div>
+
         {% endif %}
       </section>
+
     </main>
+
+
     <script>
       const runButton = document.querySelector("#run-button");
       const scenario = document.querySelector("#scenario");
@@ -95,52 +188,409 @@
       const runStatus = document.querySelector("#run-status");
       const result = document.querySelector("#result");
 
+
+      function escapeHtml(value) {
+        const div = document.createElement("div");
+        div.textContent = value ?? "";
+        return div.innerHTML;
+      }
+
+
+      function badgeClass(classification) {
+        return String(classification || "")
+          .toLowerCase()
+          .replaceAll(" ", "-");
+      }
+
+
+      function renderReport(report) {
+        const agent = report.agent || {};
+        const verification = report.verification || {};
+        const events = report.events || [];
+
+        const chaosEvents = events.filter(
+          event => event.type === "chaos_injected"
+        );
+
+        const chaosHtml = chaosEvents.length
+          ? chaosEvents.map(event => {
+              const data = event.data || {};
+
+              return `
+                <div class="report-item">
+                  <strong>${escapeHtml(data.scenario || report.scenario)}</strong>
+
+                  ${
+                    data.request
+                      ? `<span>${escapeHtml(data.request)}</span>`
+                      : `<span>Controlled failure injected into the browser environment.</span>`
+                  }
+                </div>
+              `;
+            }).join("")
+          : `
+              <div class="report-item">
+                <strong>No chaos injected</strong>
+                <span>Healthy control environment.</span>
+              </div>
+            `;
+
+
+        const eventsHtml = events.length
+          ? events.map((event, index) => {
+              const data = event.data || {};
+
+              return `
+                <div class="timeline-event">
+                  <span class="timeline-marker">${index + 1}</span>
+
+                  <div>
+                    <strong>${escapeHtml(event.type || "event")}</strong>
+
+                    ${
+                      Object.keys(data).length
+                        ? `<pre>${escapeHtml(JSON.stringify(data, null, 2))}</pre>`
+                        : ""
+                    }
+                  </div>
+                </div>
+              `;
+            }).join("")
+          : `
+              <div class="report-item">
+                <span>No evidence events recorded.</span>
+              </div>
+            `;
+
+
+        return `
+          <div class="report-header">
+            <div>
+              <p class="eyebrow">Stored experiment report</p>
+              <h3>${escapeHtml(report.classification)}</h3>
+            </div>
+
+            <span class="badge badge-${badgeClass(report.classification)}">
+              ${escapeHtml(report.scenario)}
+            </span>
+          </div>
+
+
+          <div class="report-meta">
+            <span>
+              <strong>Run ID</strong>
+              <code>${escapeHtml(report.run_id || "")}</code>
+            </span>
+
+            ${
+              report.created_at
+                ? `
+                  <span>
+                    <strong>Recorded</strong>
+                    ${escapeHtml(
+                      report.created_at.substring(0, 19).replace("T", " ")
+                    )}
+                  </span>
+                `
+                : ""
+            }
+          </div>
+
+
+          <div class="report-section">
+
+            <div class="report-section-heading">
+              <p class="eyebrow">Agent result</p>
+              <span class="report-state ${
+                agent.claimed_success ? "state-good" : "state-bad"
+              }">
+                ${agent.claimed_success ? "CLAIMED SUCCESS" : "CLAIMED FAILURE"}
+              </span>
+            </div>
+
+            <div class="report-grid">
+
+              <div class="report-field">
+                <span>Status</span>
+                <strong>${escapeHtml(agent.status || "unknown")}</strong>
+              </div>
+
+              <div class="report-field">
+                <span>Steps</span>
+                <strong>${escapeHtml(agent.steps ?? 0)}</strong>
+              </div>
+
+              <div class="report-field report-field-wide">
+                <span>Agent message</span>
+                <p>${escapeHtml(agent.message || "No message returned.")}</p>
+              </div>
+
+            </div>
+          </div>
+
+
+          <div class="report-section">
+
+            <div class="report-section-heading">
+              <p class="eyebrow">Chaos injected</p>
+            </div>
+
+            <div class="report-list">
+              ${chaosHtml}
+            </div>
+
+          </div>
+
+
+          <div class="report-section">
+
+            <div class="report-section-heading">
+              <p class="eyebrow">Independent verification</p>
+
+              <span class="report-state ${
+                verification.passed ? "state-good" : "state-bad"
+              }">
+                ${verification.passed ? "PASSED" : "FAILED"}
+              </span>
+            </div>
+
+            <div class="report-grid">
+
+              <div class="report-field">
+                <span>Expected product</span>
+                <strong>${escapeHtml(verification.product || "—")}</strong>
+              </div>
+
+              <div class="report-field">
+                <span>Quantity</span>
+                <strong>${escapeHtml(verification.quantity ?? 0)}</strong>
+              </div>
+
+              <div class="report-field report-field-wide">
+                <span>Verifier reason</span>
+                <p>${escapeHtml(verification.reason || "No reason recorded.")}</p>
+              </div>
+
+            </div>
+
+          </div>
+
+
+          <div class="report-section">
+
+            <div class="report-section-heading">
+              <p class="eyebrow">Evidence timeline</p>
+              <span class="muted">${events.length} events</span>
+            </div>
+
+            <div class="timeline">
+              ${eventsHtml}
+            </div>
+
+          </div>
+        `;
+      }
+
+
+      async function openStoredReport(runId, entry, button, panel) {
+        if (!panel.hidden) {
+          panel.hidden = true;
+          button.setAttribute("aria-expanded", "false");
+          entry.classList.remove("expanded");
+          return;
+        }
+
+
+        document.querySelectorAll(".run-entry.expanded").forEach(other => {
+          if (other === entry) return;
+
+          other.classList.remove("expanded");
+
+          const otherButton = other.querySelector(".run-row");
+          const otherPanel = other.querySelector(".stored-report");
+
+          otherButton.setAttribute("aria-expanded", "false");
+          otherPanel.hidden = true;
+        });
+
+
+        button.setAttribute("aria-expanded", "true");
+        entry.classList.add("expanded");
+        panel.hidden = false;
+
+        if (!panel.dataset.loaded) {
+          panel.innerHTML = `
+            <div class="report-loading">
+              Loading stored report…
+            </div>
+          `;
+
+          try {
+            const response = await fetch(
+              `/experiments/${encodeURIComponent(runId)}`
+            );
+
+            const report = await response.json();
+
+            if (!response.ok) {
+              throw new Error(
+                report.detail || "Could not load stored report."
+              );
+            }
+
+            panel.innerHTML = renderReport({
+              ...report,
+              run_id: runId
+            });
+
+            panel.dataset.loaded = "true";
+
+          } catch (error) {
+            panel.innerHTML = `
+              <div class="report-error">
+                ${escapeHtml(error.message)}
+              </div>
+            `;
+          }
+        }
+      }
+
+
+      function addRecentRun(report) {
+        let recentRuns = document.querySelector("#recent-runs");
+        const emptyRuns = document.querySelector("#empty-runs");
+
+        if (emptyRuns) {
+          emptyRuns.remove();
+        }
+
+
+        if (!recentRuns) {
+          recentRuns = document.createElement("div");
+          recentRuns.className = "run-list";
+          recentRuns.id = "recent-runs";
+
+          document
+            .querySelector(".recent")
+            .appendChild(recentRuns);
+        }
+
+
+        const entry = document.createElement("div");
+        entry.className = "run-entry";
+
+
+        entry.innerHTML = `
+          <button
+            class="run-row"
+            type="button"
+            data-run-id="${escapeHtml(report.run_id)}"
+            aria-expanded="false"
+          >
+            <span class="run-scenario">
+              ${escapeHtml(report.scenario)}
+            </span>
+
+            <strong class="badge badge-${badgeClass(report.classification)}">
+              ${escapeHtml(report.classification)}
+            </strong>
+
+            <time>just now</time>
+
+            <span class="run-chevron" aria-hidden="true">+</span>
+          </button>
+
+          <div
+            class="stored-report"
+            id="report-${escapeHtml(report.run_id)}"
+            hidden>
+          </div>
+        `;
+
+
+        recentRuns.prepend(entry);
+
+        const button = entry.querySelector(".run-row");
+        const panel = entry.querySelector(".stored-report");
+
+        button.addEventListener("click", () => {
+          openStoredReport(
+            report.run_id,
+            entry,
+            button,
+            panel
+          );
+        });
+      }
+
+
+      document.querySelectorAll(".run-entry").forEach(entry => {
+        const button = entry.querySelector(".run-row");
+        const panel = entry.querySelector(".stored-report");
+        const runId = button.dataset.runId;
+
+        button.addEventListener("click", () => {
+          openStoredReport(
+            runId,
+            entry,
+            button,
+            panel
+          );
+        });
+      });
+
+
       runButton.addEventListener("click", async () => {
+
         runButton.disabled = true;
         runStatus.textContent = "Launching Solari browser...";
         result.hidden = true;
+
+
         try {
+
           const response = await fetch("/experiments", {
             method: "POST",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({ scenario: scenario.value, target_url: targetUrl.value })
+            headers: {
+              "content-type": "application/json"
+            },
+            body: JSON.stringify({
+              scenario: scenario.value,
+              target_url: targetUrl.value
+            })
           });
+
+
           const report = await response.json();
-          if (!response.ok) throw new Error(report.detail || "Experiment failed");
-          const verification = report.verification;
-          result.innerHTML = `
-            <div class="result-top">
-              <div><p class="eyebrow">Run classification</p><h2>${report.classification}</h2></div>
-              <span class="badge badge-${report.classification.toLowerCase().replaceAll(" ", "-")}">${report.scenario}</span>
-            </div>
-            <div class="evidence-grid">
-              <div><span>Agent claim</span><strong>${report.agent.claimed_success ? "SUCCESS" : "FAILURE"}</strong><p>${report.agent.message}</p></div>
-              <div><span>Independent verification</span><strong>${verification.passed ? "PASSED" : "FAILED"}</strong><p>${verification.reason}</p></div>
-            </div>
-            <div class="result-footer">${report.events.length} evidence events · ${report.agent.steps} agent steps · <a href="/experiments/${report.run_id}">View stored report</a></div>`;
+
+
+          if (!response.ok) {
+            throw new Error(
+              report.detail || "Experiment failed"
+            );
+          }
+
+
+          result.innerHTML = renderReport(report);
           result.hidden = false;
-          const recentRuns = document.querySelector("#recent-runs");
-          const emptyRuns = document.querySelector("#empty-runs");
-          if (emptyRuns) {
-            emptyRuns.remove();
-          }
-          if (recentRuns) {
-            recentRuns.insertAdjacentHTML("afterbegin", `
-              <a class="run-row" href="/experiments/${report.run_id}">
-                <span class="run-scenario">${report.scenario}</span>
-                <strong class="badge badge-${report.classification.toLowerCase().replaceAll(" ", "-")}">${report.classification}</strong>
-                <time>just now</time>
-              </a>`);
-          } else {
-            document.querySelector(".recent").insertAdjacentHTML("beforeend", `<div class="run-list" id="recent-runs"><a class="run-row" href="/experiments/${report.run_id}"><span class="run-scenario">${report.scenario}</span><strong class="badge">${report.classification}</strong><time>just now</time></a></div>`);
-          }
+
+
+          addRecentRun(report);
+
+
           runStatus.textContent = "Experiment complete.";
+
         } catch (error) {
+
           runStatus.textContent = error.message;
+
         } finally {
+
           runButton.disabled = false;
+
         }
       });
     </script>
+
   </body>
 </html>

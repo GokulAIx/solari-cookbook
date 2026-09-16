@@ -101,4 +101,8 @@ async def read_experiment(run_id: str) -> dict[str, object]:
     report = get_report(run_id, database_path())
     if report is None:
         raise HTTPException(status_code=404, detail="Experiment not found")
-    return report
+
+    return {
+        "run_id": run_id,
+        **report,
+    }

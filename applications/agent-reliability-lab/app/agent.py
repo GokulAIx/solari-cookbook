@@ -5,11 +5,12 @@ from __future__ import annotations
 import json
 from typing import Annotated, Any, Awaitable, Callable, Literal, TypedDict
 
-from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage, ToolMessage
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
 from langchain_core.tools import BaseTool, tool
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.message import add_messages
+from langgraph.prebuilt import ToolNode, tools_condition
 from patchright.async_api import Page
 
 from .models import AgentResult
@@ -50,7 +51,6 @@ class BrowserAgent:
         self.max_steps = max_steps
         self.on_event = on_event
         self.tools = self._build_tools()
-        self.tool_map = {browser_tool.name: browser_tool for browser_tool in self.tools}
         self.llm = ChatGoogleGenerativeAI(model=model, temperature=0)
         self.graph = self._build_graph()
 
@@ -139,60 +139,76 @@ class BrowserAgent:
         @tool
         async def finish(status: Literal["success", "failure"], message: str) -> str:
             """End the task with the agent's claim; this is not verification."""
+            await self._emit(f"agent_claimed_{status}", {"message": message})
             return json.dumps({"status": status, "message": message})
 
         return [observe, goto, click, type_text, press, extract, finish]
 
     def _build_graph(self):
         graph = StateGraph(AgentState)
-        graph.add_node("reason", self._reason)
-        graph.add_node("act", self._act)
-        graph.add_edge(START, "reason")
-        graph.add_conditional_edges("reason", self._after_reason, {"act": "act", "done": END})
-        graph.add_conditional_edges("act", self._after_action, {"reason": "reason", "done": END})
+        graph.add_node("model", self._call_model)
+        graph.add_node("tools", ToolNode(self.tools))
+        graph.add_node("finalize", self._finalize)
+        graph.add_edge(START, "model")
+        graph.add_conditional_edges(
+            "model",
+            self._route_model,
+            {"tools": "tools", "finalize": "finalize", "done": END},
+        )
+        graph.add_conditional_edges(
+            "tools",
+            self._route_tools,
+            {"model": "model", "finalize": "finalize"},
+        )
+        graph.add_edge("finalize", END)
         return graph.compile()
 
-    async def _reason(self, state: AgentState) -> dict[str, Any]:
+    async def _call_model(self, state: AgentState) -> dict[str, Any]:
         step_count = state.get("step_count", 0) + 1
         if step_count > self.max_steps:
             return {"step_count": step_count, "final_status": "failure", "final_message": "Maximum steps reached."}
         response = await self.llm.bind_tools(self.tools).ainvoke(state["messages"])
+        action_history = [
+            *state.get("action_history", []),
+            *[
+                {"tool": call["name"], "args": call["args"]}
+                for call in response.tool_calls
+            ],
+        ]
         await self._emit("agent_decision", {"step": step_count, "tool_calls": response.tool_calls})
-        return {"messages": [response], "step_count": step_count}
+        return {"messages": [response], "step_count": step_count, "action_history": action_history}
 
-    async def _act(self, state: AgentState) -> dict[str, Any]:
-        response = state["messages"][-1]
-        if not isinstance(response, AIMessage):
-            return {"final_status": "failure", "final_message": "The model produced an invalid action."}
-        tool_messages: list[ToolMessage] = []
-        history = state.get("action_history", [])
-        updates: dict[str, Any] = {"action_history": history}
-        for call in response.tool_calls:
-            name = call["name"]
-            browser_tool = self.tool_map.get(name)
-            if browser_tool is None:
-                tool_messages.append(ToolMessage(content=f"Unknown tool: {name}", tool_call_id=call["id"]))
+    async def _finalize(self, state: AgentState) -> dict[str, Any]:
+        for message in reversed(state["messages"]):
+            if not isinstance(message, AIMessage):
                 continue
-            try:
-                result = await browser_tool.ainvoke(call["args"])
-                tool_messages.append(ToolMessage(content=str(result), tool_call_id=call["id"], name=name))
-                if name == "finish":
-                    claimed = json.loads(str(result))
-                    updates["final_status"] = claimed["status"]
-                    updates["final_message"] = claimed["message"]
-                updates["action_history"] = [*updates["action_history"], {"tool": name, "args": call["args"]}]
-            except Exception as error:
-                await self._emit("agent_retry", {"tool": name, "error": str(error)})
-                tool_messages.append(ToolMessage(content=f"Tool failed: {error}", tool_call_id=call["id"], name=name))
-        if updates.get("final_status"):
-            await self._emit(f"agent_claimed_{updates['final_status']}", {"message": updates["final_message"]})
-        return {"messages": tool_messages, **updates}
+            for call in message.tool_calls:
+                if call["name"] != "finish":
+                    continue
+                claimed = call["args"]
+                return {
+                    "final_status": claimed["status"],
+                    "final_message": claimed["message"],
+                }
+        return {
+            "final_status": "failure",
+            "final_message": "The agent stopped without making a final claim.",
+        }
 
     @staticmethod
-    def _after_reason(state: AgentState) -> str:
+    def _route_model(state: AgentState) -> str:
         last = state["messages"][-1]
-        return "act" if isinstance(last, AIMessage) and last.tool_calls else "done"
+        if state.get("final_status"):
+            return "done"
+        if not isinstance(last, AIMessage) or not last.tool_calls:
+            return "finalize"
+        if any(call["name"] == "finish" for call in last.tool_calls):
+            return "finalize"
+        return tools_condition(state)
 
     @staticmethod
-    def _after_action(state: AgentState) -> str:
-        return "done" if state.get("final_status") else "reason"
+    def _route_tools(state: AgentState) -> str:
+        last = state["messages"][-2]
+        if isinstance(last, AIMessage) and any(call["name"] == "finish" for call in last.tool_calls):
+            return "finalize"
+        return "model"

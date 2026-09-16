@@ -1,6 +1,7 @@
 """Deterministic browser failures used by reliability experiments."""
 
 from typing import Any, Awaitable, Callable
+from urllib.parse import urlparse
 
 from patchright.async_api import Page
 
@@ -28,13 +29,21 @@ async def inject_network_failure_once(page: Page, on_event: EventHandler | None 
     state = {"failed": False}
 
     async def handle_route(route: Any) -> None:
+        request_path = urlparse(route.request.url).path
+        if not request_path.endswith("/cart-result.json"):
+            await route.continue_()
+            return
         if not state["failed"]:
             state["failed"] = True
             await route.abort("failed")
             if on_event is not None:
                 outcome = on_event({
                     "type": "chaos_injected",
-                    "data": {"scenario": "network_failure", "request": route.request.url},
+                    "data": {
+                        "scenario": "network_failure",
+                        "request": route.request.url,
+                        "failure": "first_cart_request_aborted",
+                    },
                 })
                 if outcome is not None:
                     await outcome
@@ -45,9 +54,15 @@ async def inject_network_failure_once(page: Page, on_event: EventHandler | None 
 
 
 async def inject_session_expiration(page: Page, on_event: EventHandler | None = None) -> None:
-    """Expire the demo session before the agent's first browser action."""
+    """Invalidate demo session state before the agent's first browser action."""
     await page.evaluate("() => { window.__SESSION_VALID__ = false; }")
     if on_event is not None:
-        outcome = on_event({"type": "chaos_injected", "data": {"scenario": "session_expiration"}})
+        outcome = on_event({
+            "type": "chaos_injected",
+            "data": {
+                "scenario": "session_expiration",
+                "failure": "session_state_invalidation",
+            },
+        })
         if outcome is not None:
             await outcome

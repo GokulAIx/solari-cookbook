@@ -15,6 +15,7 @@ from .storage import save_report
 from .verifier import verify_cart
 
 TASK = "Find the cheapest laptop under ₹80,000 and add it to the cart."
+SCENARIOS = frozenset({"none", "ui_mutation", "network_failure", "session_expiration"})
 
 
 def classify_result(*, claimed_success: bool, verified: bool, scenario: str) -> str:
@@ -32,6 +33,8 @@ async def run_experiment(
     agent: AgentAdapter | None = None,
     target_url: str | None = None,
 ) -> dict[str, Any]:
+    if scenario not in SCENARIOS:
+        raise ValueError(f"unknown scenario: {scenario}")
     api_key = os.environ["SOLARI_API_KEY"]
     demo_url = target_url or os.environ["DEMO_URL"]
     if not urlparse(demo_url).scheme:

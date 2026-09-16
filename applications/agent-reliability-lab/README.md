@@ -65,7 +65,7 @@ $env:CHAOS_SCENARIO = "network_failure"
 .venv\Scripts\python.exe -m app.experiment
 ```
 
-Expire the session before the agent acts:
+Invalidate the demo session state before the agent acts:
 
 ```powershell
 $env:CHAOS_SCENARIO = "session_expiration"

@@ -1,9 +1,15 @@
 import unittest
 
-from app.experiment import classify_result
+from app.experiment import SCENARIOS, classify_result
 
 
 class ClassificationTests(unittest.TestCase):
+    def test_supported_scenarios_are_explicit(self) -> None:
+        self.assertEqual(
+            SCENARIOS,
+            {"none", "ui_mutation", "network_failure", "session_expiration"},
+        )
+
     def test_control_success(self) -> None:
         self.assertEqual(
             classify_result(claimed_success=True, verified=True, scenario="none"),

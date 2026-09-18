@@ -156,9 +156,7 @@ h2 {
 }
 
 
-.control-panel > div {
-  grid-column: 1 / -1;
-}
+
 
 
 label,
@@ -523,6 +521,12 @@ time {
 
 .recent {
   width: 100%;
+}
+
+.experiment-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
 }
 
 .run-row:hover {
@@ -973,4 +977,14 @@ time {
     align-items: flex-start;
   }
 
+  .experiment-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.control-panel > .experiment-field {
+  grid-column: span 1;
+}
 }

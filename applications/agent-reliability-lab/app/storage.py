@@ -69,3 +69,15 @@ def list_reports(database_path: str, limit: int = 12) -> list[dict[str, Any]]:
         {"id": row[0], "created_at": row[1], "scenario": row[2], "classification": row[3]}
         for row in rows
     ]
+def clear_reports(database_path: str) -> None:
+    """Delete all stored experiment reports while keeping the database intact."""
+    if not Path(database_path).exists():
+        return
+
+    connection = sqlite3.connect(database_path)
+    try:
+        connection.execute("DELETE FROM runs")
+        connection.commit()
+    finally:
+        connection.close()
+        

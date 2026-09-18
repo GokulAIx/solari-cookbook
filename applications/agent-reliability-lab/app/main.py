@@ -16,7 +16,7 @@ from solari_browser import Solari
 
 from .adapters import AgentContext, configured_agent
 from .experiment import run_experiment
-from .storage import get_report, list_reports
+from .storage import clear_reports, get_report, list_reports
 
 if sys.platform == "win32" and hasattr(asyncio, "WindowsProactorEventLoopPolicy"):
     asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
@@ -95,6 +95,10 @@ async def create_experiment(request: ExperimentRequest) -> dict[str, object]:
     except Exception as error:
         raise HTTPException(status_code=502, detail=f"Experiment failed: {error}") from error
 
+@app.delete("/experiments")
+async def clear_experiment_history() -> dict[str, object]:
+    clear_reports(database_path())
+    return {"status": "cleared"}
 
 @app.get("/experiments/{run_id}")
 async def read_experiment(run_id: str) -> dict[str, object]:

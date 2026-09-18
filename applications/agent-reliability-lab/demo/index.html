@@ -135,12 +135,19 @@
       const cart = [];
       window.__SESSION_VALID__ = true;
 
-      signIn.addEventListener("click", () => {
-        window.__SESSION_VALID__ = true;
-        sessionStatus.textContent = "Session: active";
-        signIn.hidden = true;
-        status.textContent = "Signed in. Please retry your last action.";
-      });
+function expireSession() {
+  window.__SESSION_VALID__ = false;
+  sessionStatus.textContent = "Session: expired";
+  signIn.hidden = false;
+  status.textContent = "Session expired. Please sign in.";
+}
+
+signIn.addEventListener("click", () => {
+  window.__SESSION_VALID__ = true;
+  sessionStatus.textContent = "Session: active";
+  signIn.hidden = true;
+  status.textContent = "Signed in. Please retry your last action.";
+});
 
       buttons.forEach((button) => {
         button.addEventListener("click", async () => {
@@ -148,7 +155,9 @@
           const product = card.querySelector("h2").textContent;
           const productId = card.dataset.productId;
           try {
-            if (!window.__SESSION_VALID__) throw new Error("session expired");
+  if (!window.__SESSION_VALID__) {
+    throw new Error("session expired");
+  }
             const response = await fetch(`/cart-result.json?product=${productId}`);
             if (!response.ok) throw new Error("cart request failed");
             const result = await response.json();

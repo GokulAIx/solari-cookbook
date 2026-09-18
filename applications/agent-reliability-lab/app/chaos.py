@@ -55,7 +55,27 @@ async def inject_network_failure_once(page: Page, on_event: EventHandler | None 
 
 async def inject_session_expiration(page: Page, on_event: EventHandler | None = None) -> None:
     """Invalidate demo session state before the agent's first browser action."""
-    await page.evaluate("() => { window.__SESSION_VALID__ = false; }")
+    await page.evaluate(
+    """() => {
+        window.__SESSION_VALID__ = false;
+
+        const sessionStatus = document.querySelector("#session-status");
+        const signIn = document.querySelector("#sign-in");
+        const status = document.querySelector('[role="status"]');
+
+        if (sessionStatus) {
+            sessionStatus.textContent = "Session: expired";
+        }
+
+        if (signIn) {
+            signIn.hidden = false;
+        }
+
+        if (status) {
+            status.textContent = "Session expired. Please sign in.";
+        }
+    }"""
+)
     if on_event is not None:
         outcome = on_event({
             "type": "chaos_injected",

@@ -35,24 +35,25 @@
           <h2 id="run-heading">Stress the reference agent</h2>
         </div>
 
-        <label for="scenario">Choose one test condition</label>
+        <div class="experiment-field">
+  <label for="scenario">Choose one test condition</label>
+  <select id="scenario">
+    <option value="none">Control run · healthy baseline</option>
+    <option value="ui_mutation">UI mutation</option>
+    <option value="network_failure">Network failure</option>
+    <option value="session_expiration">Session expiration</option>
+  </select>
+</div>
 
-        <select id="scenario">
-          <option value="none">Control run · healthy baseline</option>
-          <option value="ui_mutation">UI mutation</option>
-          <option value="network_failure">Network failure</option>
-          <option value="session_expiration">Session expiration</option>
-        </select>
-
-        <label for="target-url">Website under test</label>
-
-        <input
-          id="target-url"
-          type="url"
-          value="{{ config_target_url }}"
-          placeholder="https://your-demo.example"
-        >
-
+<div class="experiment-field">
+  <label for="target-url">Website under test</label>
+  <input
+    id="target-url"
+    type="url"
+    value="{{ config_target_url }}"
+    placeholder="https://your-demo.example"
+  >
+</div>
         <button id="run-button" type="button">
           Run experiment <span aria-hidden="true">→</span>
         </button>
@@ -120,13 +121,18 @@
 
       <section class="recent" aria-labelledby="recent-heading">
         <div class="section-heading">
-          <div>
-            <p class="eyebrow">Evidence archive</p>
-            <h2 id="recent-heading">Recent experiments</h2>
-          </div>
+  <div>
+    <p class="eyebrow">Evidence archive</p>
+    <h2 id="recent-heading">Recent experiments</h2>
+  </div>
 
-          <span class="muted">Ground truth comes from the verifier</span>
-        </div>
+  <div class="archive-actions">
+    <span class="muted">Ground truth comes from the verifier</span>
+    <button id="clear-history" class="clear-button" type="button">
+      Clear history
+    </button>
+  </div>
+</div>
 
         {% if reports %}
 
@@ -187,6 +193,7 @@
       const targetUrl = document.querySelector("#target-url");
       const runStatus = document.querySelector("#run-status");
       const result = document.querySelector("#result");
+      const clearHistoryButton = document.querySelector("#clear-history");
 
 
       function escapeHtml(value) {
@@ -590,6 +597,41 @@
 
         }
       });
+      if (clearHistoryButton) {
+  clearHistoryButton.addEventListener("click", async () => {
+    const confirmed = window.confirm(
+      "Clear all stored experiment reports?"
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    clearHistoryButton.disabled = true;
+    clearHistoryButton.textContent = "Clearing...";
+
+    try {
+      const response = await fetch("/experiments", {
+        method: "DELETE"
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.detail || "Could not clear experiment history."
+        );
+      }
+
+      window.location.reload();
+    } catch (error) {
+      window.alert(error.message);
+
+      clearHistoryButton.disabled = false;
+      clearHistoryButton.textContent = "Clear history";
+    }
+  });
+}
     </script>
 
   </body>

@@ -4,6 +4,9 @@ Agent Reliability Lab is an experimental reliability-testing application built o
 
 The Gemini/LangGraph browser agent included here is a reference subject under test, not the product itself. The product is the reliability layer around Solari-powered agents.
 
+
+## Live Demo 
+
 ## Phase 1
 
 Phase 1 proves the smallest end-to-end path:
